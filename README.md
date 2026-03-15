@@ -35,6 +35,10 @@ sudo eject /dev/sdX
 Boot from the USB. Anaconda will pause once to ask for your **LUKS
 passphrase**, then run completely unattended. No installer UI.
 
+> **Minimum disk size: 200 GB.** The production partition layout reserves ~186 GB in
+> fixed-size mounts before `/var/vantage` gets the remainder. Disks under 100 GB
+> use a smaller test layout (~23 GB fixed).
+
 ### Step 4 — First login
 
 Log in as `admin` / `admin` and run:
