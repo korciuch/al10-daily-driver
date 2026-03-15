@@ -16,20 +16,22 @@ if ! systemd-detect-virt -q; then
     "camera"      "Intel IPU6 camera (Meteor Lake / XPS 16)"  OFF
     "audio"       "Intel SOF audio  (Meteor Lake / XPS 16)"   OFF
     "codecs"      "Multimedia codecs + VLC (RPM Fusion)"      OFF
+    "obs"         "OBS Studio (RPM Fusion)"                   OFF
     "chrome"      "Google Chrome"                             OFF
     "openscreen"  "OpenScreen (screen sharing AppImage)"      OFF
     "devtools"    "Dev tools (GPG key, SSH key, Claude Code)" OFF
   )
-  HEIGHT=24 ITEMS=6
+  HEIGHT=26 ITEMS=7
 else
   CHECKLIST=(
     "camera"     "Intel IPU6 camera (Meteor Lake / XPS 16)"  OFF
     "audio"      "Intel SOF audio  (Meteor Lake / XPS 16)"   OFF
     "codecs"     "Multimedia codecs + VLC (RPM Fusion)"       OFF
+    "obs"        "OBS Studio (RPM Fusion)"                    OFF
     "chrome"     "Google Chrome"                              OFF
     "openscreen" "OpenScreen (screen sharing AppImage)"       OFF
   )
-  HEIGHT=22 ITEMS=5
+  HEIGHT=24 ITEMS=6
 fi
 
 CHOICES=$(whiptail --title "al10-daily-driver Setup" \
@@ -44,6 +46,11 @@ for choice in $CHOICES; do
     audio)  clone_ipu6; bash "$IPU6_DIR/audio/setup.sh" ;;
     codecs) dnf install -y ffmpeg gstreamer1-plugins-bad-free \
               gstreamer1-plugins-ugly-free gstreamer1-plugin-libav vlc ;;
+    obs)
+      flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+      flatpak install -y flathub com.obsproject.Studio
+      ;;
+
     chrome)
       dnf install -y \
         https://dl.google.com/linux/direct/google-chrome-stable_current_x86_64.rpm ;;
