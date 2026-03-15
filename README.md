@@ -66,7 +66,10 @@ codecs, and other post-install configuration.
 
 ## VM Testing
 
-Test the kickstart before flashing to USB:
+### Minimal ISO — fast iteration (partitions, %pre prompts, %post logic)
+
+Use when testing kickstart changes that don't require the full package install.
+Faster boot, smaller download. `%post` will fail on missing packages — that's expected.
 
 ```bash
 sudo virt-install \
@@ -75,6 +78,26 @@ sudo virt-install \
   --vcpus 2 \
   --disk size=40 \
   --location /var/lib/libvirt/images/AlmaLinux-10.1-x86_64-minimal.iso \
+  --initrd-inject /home/admin/Drivers/al10-daily-driver/kickstart.ks \
+  --extra-args "inst.ks=file:///kickstart.ks console=ttyS0" \
+  --graphics none \
+  --os-variant almalinux10 \
+  --boot uefi
+```
+
+### DVD ISO — full end-to-end test (before flashing to USB)
+
+Use before reflashing real hardware. Runs the complete `%post` including
+EPEL, RPM Fusion, dev tools, and repo clone. Takes longer but validates
+the full install path.
+
+```bash
+sudo virt-install \
+  --name al10-test \
+  --memory 4096 \
+  --vcpus 2 \
+  --disk size=40 \
+  --location /var/lib/libvirt/images/AlmaLinux-10.1-x86_64-dvd.iso \
   --initrd-inject /home/admin/Drivers/al10-daily-driver/kickstart.ks \
   --extra-args "inst.ks=file:///kickstart.ks console=ttyS0" \
   --graphics none \
