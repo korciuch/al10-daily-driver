@@ -3,7 +3,7 @@
 # Usage: append inst.ks=https://raw.githubusercontent.com/korciuch/al10-daily-driver/main/kickstart.ks
 #        to the boot command line, or point to a local copy on USB.
 #
-# Anaconda will prompt once for the LUKS passphrase, then run fully unattended.
+# Anaconda will prompt for admin password and LUKS passphrase, then run unattended.
 
 # ── Install source ────────────────────────────────────────────────────────────
 # Source is provided by the boot medium (ISO or inst.repo= boot arg).
@@ -13,7 +13,7 @@
 # ── Locale & keyboard ─────────────────────────────────────────────────────────
 lang en_US.UTF-8
 keyboard --vckeymap=us --xlayouts=us
-timezone America/Chicago --utc
+timezone America/Los_Angeles --utc
 
 # ── Network ───────────────────────────────────────────────────────────────────
 network --bootproto=dhcp --device=link --activate
@@ -25,9 +25,9 @@ firewall --enabled --service=ssh
 
 # ── Users ─────────────────────────────────────────────────────────────────────
 rootpw --lock
-user --name=admin --groups=wheel --password=admin --plaintext
-# Change password on first login
-firstboot --enable
+# Placeholder password — overwritten by %post --nochroot using value from %pre
+user --name=admin --groups=wheel --password=changeme --plaintext
+firstboot --disable
 
 # ── Disk & partitioning ───────────────────────────────────────────────────────
 # Auto-detect the first available disk so this works both in a VM (vda)
@@ -50,6 +50,19 @@ volgroup vg0 pv.01
 # ── Pre-install: select partition sizes by disk size ─────────────────────────
 %pre --interpreter /bin/bash
 
+# ── Admin password ────────────────────────────────────────────────────────────
+# Use read -s for reliable password input during early %pre boot environment.
+while true; do
+    echo -n "Set password for admin user: " > /dev/tty
+    read -s PASS1 < /dev/tty; echo "" > /dev/tty
+    echo -n "Confirm password: " > /dev/tty
+    read -s PASS2 < /dev/tty; echo "" > /dev/tty
+    [ "$PASS1" = "$PASS2" ] && break
+    echo "Passwords do not match. Try again." > /dev/tty
+done
+echo "${PASS1}" > /tmp/admin-pass
+
+# ── Partition sizes ───────────────────────────────────────────────────────────
 DISK=$(lsblk -d -n -o NAME,RM 2>/dev/null | awk '$2==0{print $1}' | head -1)
 DISK_MB=0
 [ -n "$DISK" ] && DISK_MB=$(lsblk -b -d -n -o SIZE /dev/$DISK 2>/dev/null | awk '{print int($1/1024/1024)}')
@@ -99,6 +112,13 @@ EOF
 curl
 %end
 
+# ── Apply admin password (runs before chroot, /tmp is shared with %pre) ───────
+%post --nochroot
+PASS=$(cat /tmp/admin-pass)
+echo "admin:${PASS}" | chroot /mnt/sysimage chpasswd
+rm -f /tmp/admin-pass
+%end
+
 # ── Post-install ──────────────────────────────────────────────────────────────
 %post --log=/var/log/kickstart-post.log
 set -euo pipefail
@@ -128,6 +148,10 @@ if ! systemd-detect-virt -q; then
 else
     echo "==> VM detected — skipping Server with GUI"
 fi
+
+echo "==> Installing GitHub CLI"
+dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
+dnf install -y gh libsecret
 
 echo "==> Cloning al10-daily-driver"
 git clone https://github.com/korciuch/al10-daily-driver.git /opt/al10-daily-driver
