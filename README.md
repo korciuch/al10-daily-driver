@@ -21,7 +21,10 @@ git clone https://github.com/korciuch/al10-daily-driver.git
 bash al10-daily-driver/build-iso.sh AlmaLinux-10.1-x86_64-dvd.iso
 ```
 
-This produces `al10-daily-driver.iso`.
+This produces `al10-daily-driver.iso` (~8.5 GB).
+
+> **DVD ISO required** — the minimal ISO lacks EFI partition data and `mkksiso` will fail with xorriso exit 32.
+> **USB drive must be at least 9 GB.**
 
 ### Step 2 — Write to USB
 

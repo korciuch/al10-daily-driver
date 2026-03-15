@@ -13,19 +13,23 @@ clone_ipu6() {
 # Build checklist — devtools only on bare metal (requires GNOME Keyring)
 if ! systemd-detect-virt -q; then
   CHECKLIST=(
-    "camera"   "Intel IPU6 camera (Meteor Lake / XPS 16)"  OFF
-    "audio"    "Intel SOF audio  (Meteor Lake / XPS 16)"   OFF
-    "codecs"   "Multimedia codecs (RPM Fusion)"             OFF
-    "devtools" "Dev tools (GPG key, SSH key, Claude Code)"  OFF
+    "camera"      "Intel IPU6 camera (Meteor Lake / XPS 16)"  OFF
+    "audio"       "Intel SOF audio  (Meteor Lake / XPS 16)"   OFF
+    "codecs"      "Multimedia codecs + VLC (RPM Fusion)"      OFF
+    "chrome"      "Google Chrome"                             OFF
+    "openscreen"  "OpenScreen (screen sharing AppImage)"      OFF
+    "devtools"    "Dev tools (GPG key, SSH key, Claude Code)" OFF
   )
-  HEIGHT=22 ITEMS=4
+  HEIGHT=24 ITEMS=6
 else
   CHECKLIST=(
-    "camera" "Intel IPU6 camera (Meteor Lake / XPS 16)"  OFF
-    "audio"  "Intel SOF audio  (Meteor Lake / XPS 16)"   OFF
-    "codecs" "Multimedia codecs (RPM Fusion)"             OFF
+    "camera"     "Intel IPU6 camera (Meteor Lake / XPS 16)"  OFF
+    "audio"      "Intel SOF audio  (Meteor Lake / XPS 16)"   OFF
+    "codecs"     "Multimedia codecs + VLC (RPM Fusion)"       OFF
+    "chrome"     "Google Chrome"                              OFF
+    "openscreen" "OpenScreen (screen sharing AppImage)"       OFF
   )
-  HEIGHT=20 ITEMS=3
+  HEIGHT=22 ITEMS=5
 fi
 
 CHOICES=$(whiptail --title "al10-daily-driver Setup" \
@@ -40,6 +44,25 @@ for choice in $CHOICES; do
     audio)  clone_ipu6; bash "$IPU6_DIR/audio/setup.sh" ;;
     codecs) dnf install -y ffmpeg gstreamer1-plugins-bad-free \
               gstreamer1-plugins-ugly-free gstreamer1-plugin-libav vlc ;;
+    chrome)
+      dnf install -y \
+        https://dl.google.com/linux/direct/google-chrome-stable_current_x86_64.rpm ;;
+
+    openscreen)
+      curl -L -o /opt/Openscreen.AppImage \
+        https://github.com/siddharthvaddem/openscreen/releases/download/v1.2.0/Openscreen-Linux-latest.AppImage
+      chmod +x /opt/Openscreen.AppImage
+      cat > /usr/local/share/applications/openscreen.desktop <<'DESKTOP'
+[Desktop Entry]
+Name=OpenScreen
+Exec=/opt/Openscreen.AppImage --no-sandbox
+Icon=video-display
+Type=Application
+Categories=Network;
+DESKTOP
+      update-desktop-database /usr/local/share/applications 2>/dev/null || true
+      ;;
+
     devtools)
       ADMIN_USER="${SUDO_USER:-admin}"
       ADMIN_HOME=$(getent passwd "${ADMIN_USER}" | cut -d: -f6)
