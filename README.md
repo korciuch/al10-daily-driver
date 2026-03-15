@@ -1,7 +1,24 @@
 # AlmaLinux 10.1 Daily Driver
 
-Generic fixes for hardware and software that doesn't work out of the box
-on AlmaLinux 10.1 / RHEL 10.
+A reproducible, automated install for AlmaLinux 10.1 as a daily driver on
+modern hardware (currently targeting the Dell XPS 16 9640 / Intel Meteor Lake).
+
+AlmaLinux 10.1 ships with gaps — missing camera drivers, broken audio firmware,
+no multimedia codecs, and no straightforward way to get a working desktop in one
+shot. This repo closes those gaps through two components:
+
+- **`kickstart.ks`** — a fully unattended Anaconda kickstart that handles disk
+  partitioning (XFS on LVM on LUKS2), user setup, and base package installation
+  in a single boot. No clicking through an installer, no manual post-install
+  steps forgotten between reinstalls.
+
+- **`setup.sh`** — an interactive module selector (run after first login) that
+  patches hardware, installs optional software, and configures developer tooling.
+  Each module is independent and idempotent.
+
+The kickstart + setup.sh split means the full system can be rebuilt from scratch
+in under 30 minutes with a single USB flash and one script run — making it
+practical to iterate on the config rather than accumulate manual one-off changes.
 
 ---
 
