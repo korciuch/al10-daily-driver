@@ -7,69 +7,71 @@ on AlmaLinux 10.1 / RHEL 10.
 
 ## Quick Install
 
-The `kickstart.ks` file fully automates the AlmaLinux install — no clicking
-through the Anaconda installer. It will pause once to ask for your LUKS
-passphrase, then run completely unattended.
+### Step 1 — Build a custom ISO
 
-### Steps
+Embeds `kickstart.ks` directly into the AlmaLinux ISO so the install starts
+automatically on boot — no GRUB editing needed.
 
-1. **Download the AlmaLinux 10.1 minimal or DVD ISO** and write it to a USB drive:
-   ```bash
-   sudo dd if=AlmaLinux-10.1-x86_64-dvd.iso of=/dev/sdX bs=4M status=progress
-   ```
-
-2. **Boot from the USB.** When the GRUB menu appears, press `e` to edit the
-   boot entry.
-
-3. **Add the Kickstart location** to the `linuxefi` line:
-   ```
-   inst.ks=https://raw.githubusercontent.com/korciuch/al10-daily-driver/main/kickstart.ks
-   ```
-   The line should look like:
-   ```
-   linuxefi /images/pxeboot/vmlinuz inst.stage2=hd:LABEL=... inst.ks=https://raw.githubusercontent.com/korciuch/al10-daily-driver/main/kickstart.ks
-   ```
-
-4. Press `Ctrl+X` to boot. Anaconda will prompt for your **LUKS passphrase**,
-   then proceed fully unattended.
-
-5. After reboot, log in as `admin` / `admin` and run:
-   ```bash
-   bash ~/setup.sh
-   ```
-   This runs the interactive module selector to install hardware fixes,
-   codecs, and other post-install configuration.
-
-### Using a local copy of the Kickstart (offline / no internet at boot)
-
-Copy `kickstart.ks` to the USB drive and reference it via the `hd:` scheme:
-```
-inst.ks=hd:LABEL=MY_USB:/kickstart.ks
-```
-
-Or serve it over HTTP on your local network:
 ```bash
-python3 -m http.server 8080   # run on another machine
-# then at boot:
-inst.ks=http://192.168.1.x:8080/kickstart.ks
+# Install lorax (provides mkksiso) if not already present
+sudo dnf install -y lorax
+
+# Download the AlmaLinux 10.1 DVD ISO, then:
+git clone https://github.com/korciuch/al10-daily-driver.git
+bash al10-daily-driver/build-iso.sh AlmaLinux-10.1-x86_64-dvd.iso
 ```
+
+This produces `al10-daily-driver.iso`.
+
+### Step 2 — Write to USB
+
+```bash
+sudo dd if=al10-daily-driver.iso of=/dev/sdX bs=4M status=progress
+sudo eject /dev/sdX
+```
+
+### Step 3 — Boot and install
+
+Boot from the USB. Anaconda will pause once to ask for your **LUKS
+passphrase**, then run completely unattended. No installer UI.
+
+### Step 4 — First login
+
+Log in as `admin` / `admin` and run:
+
+```bash
+bash ~/setup.sh
+```
+
+This runs the interactive module selector to install hardware fixes,
+codecs, and other post-install configuration.
 
 ---
 
-## What the Kickstart installs
+## What gets installed
 
 - AlmaLinux 10.1 with GNOME, XFS on LVM on LUKS2
 - CRB, EPEL, and RPM Fusion repos pre-configured
 - Build tools: `gcc`, `make`, `dkms`, `kernel-devel`, `git`
-- `admin` user with default password (you will be prompted to change it on first login)
+- `admin` user (default password, forced change on first login)
 - Root account locked
-- Clones this repo to `/opt/al10-daily-driver` and drops `~/setup.sh`
+- This repo cloned to `/opt/al10-daily-driver`
+
+---
+
+## Fallback: manual GRUB edit
+
+If you can't run `build-iso.sh` (e.g. on a non-Linux machine), boot the
+stock AlmaLinux ISO, press `e` on the GRUB menu, and append to the
+`linuxefi` line:
+
+```
+inst.ks=https://raw.githubusercontent.com/korciuch/al10-daily-driver/main/kickstart.ks
+```
 
 ---
 
 ## Hardware-specific fixes
-
-Hardware-specific fixes live in their own repos:
 
 | Repo | Hardware | What it fixes |
 |------|----------|--------------|
