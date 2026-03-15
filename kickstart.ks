@@ -3,7 +3,7 @@
 # Usage: append inst.ks=https://raw.githubusercontent.com/korciuch/al10-daily-driver/main/kickstart.ks
 #        to the boot command line, or point to a local copy on USB.
 #
-# Anaconda will prompt once for the LUKS passphrase, then run fully unattended.
+# Anaconda will prompt for admin password and LUKS passphrase, then run unattended.
 
 # ── Install source ────────────────────────────────────────────────────────────
 # Source is provided by the boot medium (ISO or inst.repo= boot arg).
@@ -25,9 +25,9 @@ firewall --enabled --service=ssh
 
 # ── Users ─────────────────────────────────────────────────────────────────────
 rootpw --lock
-user --name=admin --groups=wheel --password=admin --plaintext
-# Change password on first login
-firstboot --enable
+# Password set interactively in %pre, included below
+%include /tmp/user-include
+firstboot --disable
 
 # ── Disk & partitioning ───────────────────────────────────────────────────────
 # Auto-detect the first available disk so this works both in a VM (vda)
@@ -50,6 +50,17 @@ volgroup vg0 pv.01
 # ── Pre-install: select partition sizes by disk size ─────────────────────────
 %pre --interpreter /bin/bash
 
+# ── Admin password ────────────────────────────────────────────────────────────
+while true; do
+    PASS1=$(whiptail --passwordbox "Set password for admin user:" 8 60 3>&1 1>&2 2>&3) || exit 1
+    PASS2=$(whiptail --passwordbox "Confirm password:" 8 60 3>&1 1>&2 2>&3) || exit 1
+    [ "$PASS1" = "$PASS2" ] && break
+    whiptail --msgbox "Passwords do not match. Try again." 8 40
+done
+HASH=$(python3 -c "import crypt; print(crypt.crypt('${PASS1}', crypt.mksalt(crypt.METHOD_SHA512)))")
+echo "user --name=admin --groups=wheel --iscrypted --password=${HASH}" > /tmp/user-include
+
+# ── Partition sizes ───────────────────────────────────────────────────────────
 DISK=$(lsblk -d -n -o NAME,RM 2>/dev/null | awk '$2==0{print $1}' | head -1)
 DISK_MB=0
 [ -n "$DISK" ] && DISK_MB=$(lsblk -b -d -n -o SIZE /dev/$DISK 2>/dev/null | awk '{print int($1/1024/1024)}')
