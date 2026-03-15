@@ -39,7 +39,7 @@ for choice in $CHOICES; do
     camera) clone_ipu6; bash "$IPU6_DIR/setup.sh" ;;
     audio)  clone_ipu6; bash "$IPU6_DIR/audio/setup.sh" ;;
     codecs) dnf install -y ffmpeg gstreamer1-plugins-bad-free \
-              gstreamer1-plugins-ugly-free gstreamer1-plugin-libav ;;
+              gstreamer1-plugins-ugly-free gstreamer1-plugin-libav vlc ;;
     devtools)
       ADMIN_USER="${SUDO_USER:-admin}"
       ADMIN_HOME=$(getent passwd "${ADMIN_USER}" | cut -d: -f6)
