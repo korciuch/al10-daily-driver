@@ -50,10 +50,11 @@ codecs, and other post-install configuration.
 
 ## What gets installed
 
-- AlmaLinux 10.1 with GNOME, XFS on LVM on LUKS2
+- AlmaLinux 10.1, XFS on LVM on LUKS2
+- GNOME desktop on bare metal (skipped automatically in VMs)
 - CRB, EPEL, and RPM Fusion repos pre-configured
-- Build tools: `gcc`, `make`, `dkms`, `kernel-devel`, `git`
-- `admin` user (default password, forced change on first login)
+- Build tools: `gcc`, `make`, `git` (Development Tools group)
+- `admin` user (default password `admin`, forced change on first login)
 - Root account locked
 - This repo cloned to `/opt/al10-daily-driver`
 

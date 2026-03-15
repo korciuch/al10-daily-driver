@@ -85,6 +85,7 @@ fi
 
 echo "==> Cloning al10-daily-driver"
 git clone https://github.com/korciuch/al10-daily-driver.git /opt/al10-daily-driver
+chown -R admin:admin /opt/al10-daily-driver
 
 echo "==> Creating setup shortcut for admin user"
 cat > /home/admin/setup.sh <<'EOF'
