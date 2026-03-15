@@ -66,15 +66,19 @@ Test the kickstart before flashing to USB:
 ```bash
 sudo virt-install \
   --name al10-test \
-  --ram 4096 \
+  --memory 4096 \
   --vcpus 2 \
   --disk size=40 \
   --location /var/lib/libvirt/images/AlmaLinux-10.1-x86_64-minimal.iso \
-  --initrd-inject kickstart.ks \
-  --extra-args "inst.ks=file:/kickstart.ks console=ttyS0" \
+  --initrd-inject /home/admin/Drivers/al10-daily-driver/kickstart.ks \
+  --extra-args "inst.ks=file:///kickstart.ks console=ttyS0" \
   --graphics none \
-  --os-variant almalinux10
+  --os-variant almalinux10 \
+  --boot uefi
 ```
+
+> `--boot uefi` is required — kickstart has an EFI partition, BIOS mode causes a "biosboot partition required" error.
+> `edk2-ovmf` must be installed: `sudo dnf install -y edk2-ovmf`
 
 `Server with GUI` is automatically skipped in VMs (`systemd-detect-virt` detects KVM).
 Check post-install log: `sudo virsh console al10-test` → `cat /var/log/kickstart-post.log`
