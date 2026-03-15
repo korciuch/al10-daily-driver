@@ -25,8 +25,8 @@ firewall --enabled --service=ssh
 
 # ── Users ─────────────────────────────────────────────────────────────────────
 rootpw --lock
-# Password set interactively in %pre, included below
-%include /tmp/user-include
+# Placeholder password — overwritten by %post --nochroot using value from %pre
+user --name=admin --groups=wheel --password=changeme --plaintext
 firstboot --disable
 
 # ── Disk & partitioning ───────────────────────────────────────────────────────
@@ -57,8 +57,7 @@ while true; do
     [ "$PASS1" = "$PASS2" ] && break
     whiptail --msgbox "Passwords do not match. Try again." 8 40
 done
-HASH=$(python3 -c "import crypt; print(crypt.crypt('${PASS1}', crypt.mksalt(crypt.METHOD_SHA512)))")
-echo "user --name=admin --groups=wheel --iscrypted --password=${HASH}" > /tmp/user-include
+echo "${PASS1}" > /tmp/admin-pass
 
 # ── Partition sizes ───────────────────────────────────────────────────────────
 DISK=$(lsblk -d -n -o NAME,RM 2>/dev/null | awk '$2==0{print $1}' | head -1)
@@ -108,6 +107,13 @@ EOF
 %packages
 @core
 curl
+%end
+
+# ── Apply admin password (runs before chroot, /tmp is shared with %pre) ───────
+%post --nochroot
+PASS=$(cat /tmp/admin-pass)
+echo "admin:${PASS}" | chroot /mnt/sysimage chpasswd
+rm -f /tmp/admin-pass
 %end
 
 # ── Post-install ──────────────────────────────────────────────────────────────
