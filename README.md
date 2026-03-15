@@ -59,6 +59,36 @@ codecs, and other post-install configuration.
 
 ---
 
+## VM Testing
+
+Test the kickstart before flashing to USB:
+
+```bash
+sudo virt-install \
+  --name al10-test \
+  --ram 4096 \
+  --vcpus 2 \
+  --disk size=40 \
+  --location /var/lib/libvirt/images/AlmaLinux-10.1-x86_64-minimal.iso \
+  --initrd-inject kickstart.ks \
+  --extra-args "inst.ks=file:/kickstart.ks console=ttyS0" \
+  --graphics none \
+  --os-variant almalinux10
+```
+
+`Server with GUI` is automatically skipped in VMs (`systemd-detect-virt` detects KVM).
+Check post-install log: `sudo virsh console al10-test` → `cat /var/log/kickstart-post.log`
+
+**Cleanup:**
+```bash
+sudo virsh destroy al10-test                            # if still running
+sudo virsh undefine al10-test --remove-all-storage --nvram
+```
+
+> `--nvram` is required — omitting it will error on UEFI-booted VMs.
+
+---
+
 ## Fallback: manual GRUB edit
 
 If you can't run `build-iso.sh` (e.g. on a non-Linux machine), boot the

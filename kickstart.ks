@@ -6,10 +6,9 @@
 # Anaconda will prompt once for the LUKS passphrase, then run fully unattended.
 
 # ── Install source ────────────────────────────────────────────────────────────
-url --mirrorlist=https://mirrors.almalinux.org/mirrorlist/10/BaseOS
-repo --name=AppStream --mirrorlist=https://mirrors.almalinux.org/mirrorlist/10/AppStream
-repo --name=extras --mirrorlist=https://mirrors.almalinux.org/mirrorlist/10/extras
-repo --name=CRB --mirrorlist=https://mirrors.almalinux.org/mirrorlist/10/CRB
+# Source is provided by the boot medium (ISO or inst.repo= boot arg).
+# Do not set url/repo here — it conflicts with virt-install --location
+# and with inst.ks= boot arg installs where Anaconda auto-detects the source.
 
 # ── Locale & keyboard ─────────────────────────────────────────────────────────
 lang en_US.UTF-8
@@ -31,44 +30,27 @@ user --name=admin --groups=wheel --password=admin --plaintext
 firstboot --enable
 
 # ── Disk & partitioning ───────────────────────────────────────────────────────
-ignoredisk --only-use=nvme0n1
-clearpart --all --initlabel --drives=nvme0n1
-bootloader --location=mbr --boot-drive=nvme0n1
+# Auto-detect the first available disk so this works both in a VM (vda)
+# and on the real machine (nvme0n1). clearpart --all wipes everything.
+clearpart --all --initlabel
+bootloader --location=mbr
 
 # Prompt for LUKS passphrase — only interactive pause in the install
-part /boot/efi --fstype=efi  --size=512  --ondrive=nvme0n1
-part /boot     --fstype=xfs  --size=1024 --ondrive=nvme0n1
-part pv.01     --size=1      --grow      --ondrive=nvme0n1 --encrypted --luks-version=luks2
+part /boot/efi --fstype=efi  --size=512  --asprimary
+part /boot     --fstype=xfs  --size=1024
+part pv.01     --size=1      --grow      --encrypted --luks-version=luks2
 
 volgroup vg0 pv.01
 logvol /    --vgname=vg0 --fstype=xfs --size=1 --grow --name=root
 logvol swap --vgname=vg0 --fstype=swap --size=8192  --name=swap
 
 # ── Package selection ─────────────────────────────────────────────────────────
+# Keep this minimal — only packages available on the AlmaLinux minimal ISO.
+# Everything else (GNOME, DKMS, EPEL, build tools) is installed in %post
+# after the network is up and repos are configured.
 %packages
-@^graphical-server-environment
-@base
 @core
-@development
-@hardware-support
-@network-file-system-client
-
-# Build tools (needed for DKMS)
-gcc
-make
-dkms
-kernel-devel
-git
 curl
-
-# EPEL bootstrap (RPM Fusion depends on it)
-epel-release
-
-# CLI utilities
-bash-completion
-htop
-tmux
-vim
 %end
 
 # ── Post-install ──────────────────────────────────────────────────────────────
@@ -78,6 +60,9 @@ set -euo pipefail
 echo "==> Enabling CRB repo"
 dnf config-manager --set-enabled crb -y
 
+echo "==> Installing EPEL"
+dnf install -y epel-release
+
 echo "==> Installing RPM Fusion (free + nonfree)"
 dnf install -y distribution-gpg-keys
 rpmkeys --import /usr/share/distribution-gpg-keys/rpmfusion/RPM-GPG-KEY-rpmfusion-free-el-$(rpm -E %rhel)
@@ -85,6 +70,18 @@ rpmkeys --import /usr/share/distribution-gpg-keys/rpmfusion/RPM-GPG-KEY-rpmfusio
 dnf --setopt=localpkg_gpgcheck=1 install -y \
     https://mirrors.rpmfusion.org/free/el/rpmfusion-free-release-$(rpm -E %rhel).noarch.rpm \
     https://mirrors.rpmfusion.org/nonfree/el/rpmfusion-nonfree-release-$(rpm -E %rhel).noarch.rpm
+
+echo "==> Installing dev tools"
+dnf groupinstall -y "Development Tools"
+dnf install -y bash-completion htop tmux vim
+
+if ! systemd-detect-virt -q; then
+    echo "==> Bare metal detected — installing Server with GUI"
+    dnf groupinstall -y "Server with GUI"
+    systemctl set-default graphical.target
+else
+    echo "==> VM detected — skipping Server with GUI"
+fi
 
 echo "==> Cloning al10-daily-driver"
 git clone https://github.com/korciuch/al10-daily-driver.git /opt/al10-daily-driver
