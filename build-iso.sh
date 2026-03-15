@@ -9,6 +9,7 @@
 #   sudo dnf install -y lorax
 
 set -euo pipefail
+[[ $EUID -eq 0 ]] || exec sudo "$0" "$@"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INPUT_ISO="${1:-}"
@@ -19,6 +20,7 @@ KS="$SCRIPT_DIR/kickstart.ks"
 [[ -n "$INPUT_ISO" ]] || { echo "Usage: $0 <input-iso> [output-iso]" >&2; exit 1; }
 [[ -f "$INPUT_ISO" ]] || { echo "ERROR: input ISO not found: $INPUT_ISO" >&2; exit 1; }
 [[ -f "$KS" ]]        || { echo "ERROR: kickstart.ks not found: $KS" >&2; exit 1; }
+[[ -f "$OUTPUT_ISO" ]] && { echo "==> Removing existing $OUTPUT_ISO"; rm -f "$OUTPUT_ISO"; }
 
 command -v mkksiso >/dev/null 2>&1 || {
     echo "ERROR: mkksiso not found. Install it with:"
