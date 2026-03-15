@@ -51,11 +51,14 @@ volgroup vg0 pv.01
 %pre --interpreter /bin/bash
 
 # ── Admin password ────────────────────────────────────────────────────────────
+# Use read -s for reliable password input during early %pre boot environment.
 while true; do
-    PASS1=$(whiptail --passwordbox "Set password for admin user:" 8 60 3>&1 1>&2 2>&3) || exit 1
-    PASS2=$(whiptail --passwordbox "Confirm password:" 8 60 3>&1 1>&2 2>&3) || exit 1
+    echo -n "Set password for admin user: " > /dev/tty
+    read -s PASS1 < /dev/tty; echo "" > /dev/tty
+    echo -n "Confirm password: " > /dev/tty
+    read -s PASS2 < /dev/tty; echo "" > /dev/tty
     [ "$PASS1" = "$PASS2" ] && break
-    whiptail --msgbox "Passwords do not match. Try again." 8 40
+    echo "Passwords do not match. Try again." > /dev/tty
 done
 echo "${PASS1}" > /tmp/admin-pass
 
