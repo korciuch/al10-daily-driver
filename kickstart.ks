@@ -42,41 +42,51 @@ part pv.01     --size=1      --grow       --encrypted --luks-version=luks2
 
 volgroup vg0 pv.01
 
-# Logical volume sizes — constants for security-sensitive mounts,
-# percentages of disk for /var and /home, remainder to /var/vantage.
-# Sizes calculated in %pre from detected disk size; included below.
+# Logical volume sizes — all constants, scaled by disk size.
+# < 100 GB (test/VM): small layout. >= 100 GB (production): full layout.
+# /var/vantage gets the remainder with --grow.
 %include /tmp/part-include
 
-# ── Pre-install: calculate partition sizes ────────────────────────────────────
-%pre
-#!/bin/bash
+# ── Pre-install: select partition sizes by disk size ─────────────────────────
+%pre --interpreter /bin/bash
 
-# Detect disk (first non-removable block device)
-DISK=$(lsblk -d -n -o NAME,RM | awk '$2==0{print $1}' | head -1)
-DISK_MB=$(lsblk -b -d -n -o SIZE /dev/$DISK | awk '{print int($1/1024/1024)}')
+DISK=$(lsblk -d -n -o NAME,RM 2>/dev/null | awk '$2==0{print $1}' | head -1)
+DISK_MB=0
+[ -n "$DISK" ] && DISK_MB=$(lsblk -b -d -n -o SIZE /dev/$DISK 2>/dev/null | awk '{print int($1/1024/1024)}')
+[ "$DISK_MB" -eq 0 ] && DISK_MB=40960   # fallback: assume 40 GB
 
-# Constants (MB)
-SWAP_MB=16384
-ROOT_MB=20480
-TMP_MB=5120
-VAR_TMP_MB=5120
-VAR_LOG_MB=10240
-VAR_LOG_AUDIT_MB=10240
-
-# Percentages of disk size
-VAR_MB=$((DISK_MB * 2 / 100))
-HOME_MB=$((DISK_MB * 5 / 100))
+if [ "$DISK_MB" -lt 102400 ]; then
+    # Test / VM layout (< 100 GB)
+    ROOT_MB=4096
+    HOME_MB=5120
+    SWAP_MB=4096
+    TMP_MB=1024
+    VAR_MB=4096
+    VAR_TMP_MB=1024
+    VAR_LOG_MB=2048
+    VAR_LOG_AUDIT_MB=2048
+else
+    # Production layout (>= 100 GB)
+    ROOT_MB=71680
+    HOME_MB=51200
+    SWAP_MB=16384
+    TMP_MB=5120
+    VAR_MB=20480
+    VAR_TMP_MB=5120
+    VAR_LOG_MB=10240
+    VAR_LOG_AUDIT_MB=10240
+fi
 
 cat > /tmp/part-include <<EOF
-logvol /              --vgname=vg0 --fstype=xfs  --size=$ROOT_MB          --name=root
-logvol /home          --vgname=vg0 --fstype=xfs  --size=$HOME_MB          --name=home
-logvol /tmp           --vgname=vg0 --fstype=xfs  --size=$TMP_MB           --name=tmp
-logvol /var           --vgname=vg0 --fstype=xfs  --size=$VAR_MB           --name=var
-logvol /var/log       --vgname=vg0 --fstype=xfs  --size=$VAR_LOG_MB       --name=var_log
-logvol /var/log/audit --vgname=vg0 --fstype=xfs  --size=$VAR_LOG_AUDIT_MB --name=var_log_audit
-logvol /var/tmp       --vgname=vg0 --fstype=xfs  --size=$VAR_TMP_MB       --name=var_tmp
-logvol /var/vantage   --vgname=vg0 --fstype=xfs  --size=1 --grow          --name=var_vantage
-logvol swap           --vgname=vg0 --fstype=swap  --size=$SWAP_MB          --name=swap
+logvol /              --vgname=vg0 --fstype=xfs  --size=${ROOT_MB}          --name=root
+logvol /home          --vgname=vg0 --fstype=xfs  --size=${HOME_MB}          --name=home
+logvol /tmp           --vgname=vg0 --fstype=xfs  --size=${TMP_MB}           --name=tmp
+logvol /var           --vgname=vg0 --fstype=xfs  --size=${VAR_MB}           --name=var
+logvol /var/log       --vgname=vg0 --fstype=xfs  --size=${VAR_LOG_MB}       --name=var_log
+logvol /var/log/audit --vgname=vg0 --fstype=xfs  --size=${VAR_LOG_AUDIT_MB} --name=var_log_audit
+logvol /var/tmp       --vgname=vg0 --fstype=xfs  --size=${VAR_TMP_MB}       --name=var_tmp
+logvol /var/vantage   --vgname=vg0 --fstype=xfs  --size=1 --grow            --name=var_vantage
+logvol swap           --vgname=vg0 --fstype=swap  --size=${SWAP_MB}          --name=swap
 EOF
 %end
 
