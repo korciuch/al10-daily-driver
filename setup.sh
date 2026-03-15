@@ -116,6 +116,9 @@ EOF
         > "${ADMIN_HOME}/.gnupg/gpg-agent.conf"
       chown -R "${ADMIN_USER}:${ADMIN_USER}" "${ADMIN_HOME}/.gnupg"
 
+      # GitHub CLI login
+      sudo -u "${ADMIN_USER}" gh auth login
+
       # Claude Code
       sudo -u "${ADMIN_USER}" bash -c "curl -fsSL https://claude.ai/install.sh | bash"
 
