@@ -36,13 +36,49 @@ clearpart --all --initlabel
 bootloader --location=mbr
 
 # Prompt for LUKS passphrase — only interactive pause in the install
-part /boot/efi --fstype=efi  --size=512  --asprimary
+part /boot/efi --fstype=efi  --size=600   --asprimary
 part /boot     --fstype=xfs  --size=1024
-part pv.01     --size=1      --grow      --encrypted --luks-version=luks2
+part pv.01     --size=1      --grow       --encrypted --luks-version=luks2
 
 volgroup vg0 pv.01
-logvol /    --vgname=vg0 --fstype=xfs --size=1 --grow --name=root
-logvol swap --vgname=vg0 --fstype=swap --size=8192  --name=swap
+
+# Logical volume sizes — constants for security-sensitive mounts,
+# percentages of disk for /var and /home, remainder to /var/vantage.
+# Sizes calculated in %pre from detected disk size; included below.
+%include /tmp/part-include
+
+# ── Pre-install: calculate partition sizes ────────────────────────────────────
+%pre
+#!/bin/bash
+
+# Detect disk (first non-removable block device)
+DISK=$(lsblk -d -n -o NAME,RM | awk '$2==0{print $1}' | head -1)
+DISK_MB=$(lsblk -b -d -n -o SIZE /dev/$DISK | awk '{print int($1/1024/1024)}')
+
+# Constants (MB)
+SWAP_MB=16384
+ROOT_MB=20480
+TMP_MB=5120
+VAR_TMP_MB=5120
+VAR_LOG_MB=10240
+VAR_LOG_AUDIT_MB=10240
+
+# Percentages of disk size
+VAR_MB=$((DISK_MB * 2 / 100))
+HOME_MB=$((DISK_MB * 5 / 100))
+
+cat > /tmp/part-include <<EOF
+logvol /              --vgname=vg0 --fstype=xfs  --size=$ROOT_MB          --name=root
+logvol /home          --vgname=vg0 --fstype=xfs  --size=$HOME_MB          --name=home
+logvol /tmp           --vgname=vg0 --fstype=xfs  --size=$TMP_MB           --name=tmp
+logvol /var           --vgname=vg0 --fstype=xfs  --size=$VAR_MB           --name=var
+logvol /var/log       --vgname=vg0 --fstype=xfs  --size=$VAR_LOG_MB       --name=var_log
+logvol /var/log/audit --vgname=vg0 --fstype=xfs  --size=$VAR_LOG_AUDIT_MB --name=var_log_audit
+logvol /var/tmp       --vgname=vg0 --fstype=xfs  --size=$VAR_TMP_MB       --name=var_tmp
+logvol /var/vantage   --vgname=vg0 --fstype=xfs  --size=1 --grow          --name=var_vantage
+logvol swap           --vgname=vg0 --fstype=swap  --size=$SWAP_MB          --name=swap
+EOF
+%end
 
 # ── Package selection ─────────────────────────────────────────────────────────
 # Keep this minimal — only packages available on the AlmaLinux minimal ISO.
