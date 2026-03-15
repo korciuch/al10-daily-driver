@@ -139,7 +139,7 @@ dnf --setopt=localpkg_gpgcheck=1 install -y \
 
 echo "==> Installing dev tools"
 dnf groupinstall -y "Development Tools"
-dnf install -y bash-completion htop tmux vim
+dnf install -y bash-completion htop tmux vim fuse fuse-libs
 
 if ! systemd-detect-virt -q; then
     echo "==> Bare metal detected — installing Server with GUI"
