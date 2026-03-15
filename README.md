@@ -158,3 +158,17 @@ inst.ks=https://raw.githubusercontent.com/korciuch/al10-daily-driver/main/kickst
 | Repo | Hardware | What it fixes |
 |------|----------|--------------|
 | [al10-intel-ipu6](https://github.com/korciuch/al10-intel-ipu6) | Intel Meteor Lake (Dell XPS 16 9640) | IPU6 camera + SOF audio |
+
+### OBS Studio + IPU6 camera
+
+The IPU6 camera does not expose a standard V4L2 stream — it requires `libcamera`
+as an abstraction layer. OBS must use the **PipeWire** camera source, not the
+V4L2 one:
+
+1. In OBS, click **+** to add a source
+2. Choose **Video Capture Device (PipeWire)** (not the plain V4L2 option)
+3. Select the camera from the device list
+
+The `obs` module in `setup.sh` handles this automatically: it installs
+`libcamera-v4l2` and grants OBS Flatpak device access via
+`flatpak override --user --device=all`.
