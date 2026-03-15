@@ -13,7 +13,7 @@
 # ── Locale & keyboard ─────────────────────────────────────────────────────────
 lang en_US.UTF-8
 keyboard --vckeymap=us --xlayouts=us
-timezone America/Chicago --utc
+timezone America/Los_Angeles --utc
 
 # ── Network ───────────────────────────────────────────────────────────────────
 network --bootproto=dhcp --device=link --activate
