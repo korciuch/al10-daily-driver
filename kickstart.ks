@@ -129,6 +129,10 @@ else
     echo "==> VM detected — skipping Server with GUI"
 fi
 
+echo "==> Installing GitHub CLI"
+dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
+dnf install -y gh libsecret-tools
+
 echo "==> Cloning al10-daily-driver"
 git clone https://github.com/korciuch/al10-daily-driver.git /opt/al10-daily-driver
 chown -R admin:admin /opt/al10-daily-driver
