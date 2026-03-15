@@ -45,6 +45,14 @@ for choice in $CHOICES; do
       ADMIN_UID=$(id -u admin)
       export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${ADMIN_UID}/bus"
 
+      # Prompt for key details
+      GPG_NAME=$(whiptail --inputbox "Full name for GPG key:" 8 60 \
+        3>&1 1>&2 2>&3) || exit 0
+      GPG_EMAIL=$(whiptail --inputbox "Email for GPG/SSH keys:" 8 60 \
+        3>&1 1>&2 2>&3) || exit 0
+      GPG_EXPIRE=$(whiptail --inputbox "GPG key expiry (e.g. 2y, 1y, 0 = none):" 8 60 "2y" \
+        3>&1 1>&2 2>&3) || exit 0
+
       # GPG key
       GPG_PASS=$(openssl rand -base64 32)
       sudo -u admin gpg --batch --gen-key <<EOF
@@ -52,9 +60,9 @@ Key-Type: RSA
 Key-Length: 4096
 Subkey-Type: RSA
 Subkey-Length: 4096
-Name-Real: admin
-Name-Email: admin@localhost
-Expire-Date: 0
+Name-Real: ${GPG_NAME}
+Name-Email: ${GPG_EMAIL}
+Expire-Date: ${GPG_EXPIRE}
 Passphrase: ${GPG_PASS}
 EOF
       sudo -u admin --preserve-env=DBUS_SESSION_BUS_ADDRESS \
@@ -65,7 +73,7 @@ EOF
       SSH_PASS=$(openssl rand -base64 32)
       mkdir -p "${ADMIN_HOME}/.ssh"
       chmod 700 "${ADMIN_HOME}/.ssh"
-      sudo -u admin ssh-keygen -t ed25519 -C "admin@localhost" \
+      sudo -u admin ssh-keygen -t ed25519 -C "${GPG_EMAIL}" \
         -f "${ADMIN_HOME}/.ssh/id_ed25519" -N "${SSH_PASS}"
       sudo -u admin --preserve-env=DBUS_SESSION_BUS_ADDRESS \
         bash -c "echo -n '${SSH_PASS}' | secret-tool store \
