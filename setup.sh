@@ -41,8 +41,9 @@ for choice in $CHOICES; do
     codecs) dnf install -y ffmpeg gstreamer1-plugins-bad-free \
               gstreamer1-plugins-ugly-free gstreamer1-plugin-libav ;;
     devtools)
-      ADMIN_HOME=$(getent passwd admin | cut -d: -f6)
-      ADMIN_UID=$(id -u admin)
+      ADMIN_USER="${SUDO_USER:-admin}"
+      ADMIN_HOME=$(getent passwd "${ADMIN_USER}" | cut -d: -f6)
+      ADMIN_UID=$(id -u "${ADMIN_USER}")
       export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${ADMIN_UID}/bus"
 
       # Prompt for key details
@@ -55,7 +56,7 @@ for choice in $CHOICES; do
 
       # GPG key
       GPG_PASS=$(openssl rand -base64 32)
-      sudo -u admin gpg --batch --gen-key <<EOF
+      sudo -u "${ADMIN_USER}" gpg --batch --gen-key <<EOF
 Key-Type: RSA
 Key-Length: 4096
 Subkey-Type: RSA
@@ -65,7 +66,7 @@ Name-Email: ${GPG_EMAIL}
 Expire-Date: ${GPG_EXPIRE}
 Passphrase: ${GPG_PASS}
 EOF
-      sudo -u admin --preserve-env=DBUS_SESSION_BUS_ADDRESS \
+      sudo -u "${ADMIN_USER}" --preserve-env=DBUS_SESSION_BUS_ADDRESS \
         bash -c "echo -n '${GPG_PASS}' | secret-tool store \
           --label='GPG Key Passphrase' service gpg account admin"
 
@@ -73,9 +74,9 @@ EOF
       SSH_PASS=$(openssl rand -base64 32)
       mkdir -p "${ADMIN_HOME}/.ssh"
       chmod 700 "${ADMIN_HOME}/.ssh"
-      sudo -u admin ssh-keygen -t ed25519 -C "${GPG_EMAIL}" \
+      sudo -u "${ADMIN_USER}" ssh-keygen -t ed25519 -C "${GPG_EMAIL}" \
         -f "${ADMIN_HOME}/.ssh/id_ed25519" -N "${SSH_PASS}"
-      sudo -u admin --preserve-env=DBUS_SESSION_BUS_ADDRESS \
+      sudo -u "${ADMIN_USER}" --preserve-env=DBUS_SESSION_BUS_ADDRESS \
         bash -c "echo -n '${SSH_PASS}' | secret-tool store \
           --label='SSH Key Passphrase' service ssh account admin"
 
@@ -83,10 +84,13 @@ EOF
       mkdir -p "${ADMIN_HOME}/.gnupg"
       echo "pinentry-program /usr/bin/pinentry-gnome3" \
         > "${ADMIN_HOME}/.gnupg/gpg-agent.conf"
-      chown -R admin:admin "${ADMIN_HOME}/.gnupg"
+      chown -R "${ADMIN_USER}:${ADMIN_USER}" "${ADMIN_HOME}/.gnupg"
 
       # Claude Code
-      sudo -u admin bash -c "curl -fsSL https://claude.ai/install.sh | bash"
+      sudo -u "${ADMIN_USER}" bash -c "curl -fsSL https://claude.ai/install.sh | bash"
+
+      # Zed editor
+      sudo -u "${ADMIN_USER}" bash -c "curl -f https://zed.dev/install.sh | sh"
       ;;
   esac
 done
