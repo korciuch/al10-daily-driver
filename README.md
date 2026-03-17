@@ -86,6 +86,28 @@ codecs, and other post-install configuration.
 
 ## VM Testing
 
+### Prerequisites
+
+**Start libvirt sockets** (AlmaLinux 10 uses modular daemons — do this once after install):
+
+```bash
+for drv in qemu network nodedev nwfilter secret storage interface; do
+    sudo systemctl start virt${drv}d{,-ro,-admin}.socket
+done
+```
+
+Download the ISO(s) you need and place them in `/var/lib/libvirt/images/`:
+
+```bash
+# Minimal ISO (~800 MB) — for fast partition/kickstart logic testing
+sudo curl -L -o /var/lib/libvirt/images/AlmaLinux-10.1-x86_64-minimal.iso \
+    https://repo.almalinux.org/almalinux/10/isos/x86_64/AlmaLinux-10.1-x86_64-minimal.iso
+
+# DVD ISO (~8.5 GB) — required for full end-to-end testing and build-iso.sh
+sudo curl -L -o /var/lib/libvirt/images/AlmaLinux-10.1-x86_64-dvd.iso \
+    https://repo.almalinux.org/almalinux/10/isos/x86_64/AlmaLinux-10.1-x86_64-dvd.iso
+```
+
 ### Minimal ISO — fast iteration (partitions, %pre prompts, %post logic)
 
 Use when testing kickstart changes that don't require the full package install.
@@ -96,9 +118,10 @@ sudo virt-install \
   --name al10-test \
   --memory 4096 \
   --vcpus 2 \
-  --disk size=40 \
+  --disk size=150 \
+  --check disk_size=off \
   --location /var/lib/libvirt/images/AlmaLinux-10.1-x86_64-minimal.iso \
-  --initrd-inject /home/admin/Drivers/al10-daily-driver/kickstart.ks \
+  --initrd-inject $(pwd)/kickstart.ks \
   --extra-args "inst.ks=file:///kickstart.ks console=ttyS0" \
   --graphics none \
   --os-variant almalinux10 \
@@ -116,9 +139,10 @@ sudo virt-install \
   --name al10-test \
   --memory 4096 \
   --vcpus 2 \
-  --disk size=40 \
+  --disk size=150 \
+  --check disk_size=off \
   --location /var/lib/libvirt/images/AlmaLinux-10.1-x86_64-dvd.iso \
-  --initrd-inject /home/admin/Drivers/al10-daily-driver/kickstart.ks \
+  --initrd-inject $(pwd)/kickstart.ks \
   --extra-args "inst.ks=file:///kickstart.ks console=ttyS0" \
   --graphics none \
   --os-variant almalinux10 \
