@@ -47,7 +47,7 @@ for choice in $CHOICES; do
     codecs) dnf install -y ffmpeg gstreamer1-plugins-bad-free \
               gstreamer1-plugins-ugly-free gstreamer1-plugin-libav vlc ;;
     obs)
-      dnf install -y libcamera-v4l2
+      dnf install -y libcamera-v4l2 flatpak
       flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
       flatpak install -y flathub com.obsproject.Studio
       flatpak override --user --device=all com.obsproject.Studio
@@ -118,8 +118,32 @@ EOF
         > "${ADMIN_HOME}/.gnupg/gpg-agent.conf"
       chown -R "${ADMIN_USER}:${ADMIN_USER}" "${ADMIN_HOME}/.gnupg"
 
-      # GitHub CLI login
+      # GitHub CLI login + upload keys
       sudo -u "${ADMIN_USER}" gh auth login
+      sudo -u "${ADMIN_USER}" gh auth refresh -h github.com -s write:gpg_key
+
+      GPG_KEY_ID=$(sudo -u "${ADMIN_USER}" \
+        gpg --list-secret-keys --keyid-format=long "${GPG_EMAIL}" 2>/dev/null \
+        | awk '/^sec/{split($2,a,"/"); print a[2]; exit}')
+
+      sudo -u "${ADMIN_USER}" \
+        gpg --armor --export "${GPG_KEY_ID}" \
+        | sudo -u "${ADMIN_USER}" gh gpg-key add - --title "$(hostname)"
+
+      sudo -u "${ADMIN_USER}" \
+        gh ssh-key add "${ADMIN_HOME}/.ssh/id_ed25519.pub" --title "$(hostname)"
+
+      ssh-keyscan github.com >> "${ADMIN_HOME}/.ssh/known_hosts"
+      chown "${ADMIN_USER}:${ADMIN_USER}" "${ADMIN_HOME}/.ssh/known_hosts"
+
+      # Configure git signing
+      sudo -u "${ADMIN_USER}" git config --global user.name "${GPG_NAME}"
+      sudo -u "${ADMIN_USER}" git config --global user.email "${GPG_EMAIL}"
+      sudo -u "${ADMIN_USER}" git config --global gpg.format openpgp
+      sudo -u "${ADMIN_USER}" git config --global user.signingkey "${GPG_KEY_ID}"
+      sudo -u "${ADMIN_USER}" git config --global commit.gpgsign true
+      sudo -u "${ADMIN_USER}" git config --global \
+        remote.origin.url "git@github.com:korciuch/al10-daily-driver.git"
 
       # Claude Code
       sudo -u "${ADMIN_USER}" bash -c "curl -fsSL https://claude.ai/install.sh | bash"

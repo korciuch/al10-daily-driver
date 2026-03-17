@@ -63,7 +63,7 @@ done
 echo "${PASS1}" > /tmp/admin-pass
 
 # ── Partition sizes ───────────────────────────────────────────────────────────
-DISK=$(lsblk -d -n -o NAME,RM 2>/dev/null | awk '$2==0{print $1}' | head -1)
+DISK=$(lsblk -d -n -o NAME,RM,TYPE 2>/dev/null | awk '$2==0 && $3=="disk"{print $1}' | head -1)
 DISK_MB=0
 [ -n "$DISK" ] && DISK_MB=$(lsblk -b -d -n -o SIZE /dev/$DISK 2>/dev/null | awk '{print int($1/1024/1024)}')
 [ "$DISK_MB" -eq 0 ] && DISK_MB=40960   # fallback: assume 40 GB
@@ -145,6 +145,10 @@ if ! systemd-detect-virt -q; then
     echo "==> Bare metal detected — installing Server with GUI"
     dnf groupinstall -y "Server with GUI"
     systemctl set-default graphical.target
+    dnf install -y qemu-kvm libvirt virt-install virt-viewer
+    for drv in qemu network nodedev nwfilter secret storage interface; do
+        systemctl enable --now virt${drv}d{,-ro,-admin}.socket
+    done
 else
     echo "==> VM detected — skipping Server with GUI"
 fi
