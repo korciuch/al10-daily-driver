@@ -147,7 +147,7 @@ if ! systemd-detect-virt -q; then
     systemctl set-default graphical.target
     dnf install -y qemu-kvm libvirt virt-install virt-viewer
     for drv in qemu network nodedev nwfilter secret storage interface; do
-        systemctl enable --now virt${drv}d{,-ro,-admin}.socket
+        systemctl enable virt${drv}d{,-ro,-admin}.socket
     done
 else
     echo "==> VM detected — skipping Server with GUI"
