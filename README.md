@@ -118,7 +118,7 @@ sudo virt-install \
   --name al10-test \
   --memory 4096 \
   --vcpus 2 \
-  --disk size=150 \
+  --disk size=200,format=qcow2 \
   --check disk_size=off \
   --location /var/lib/libvirt/images/AlmaLinux-10.1-x86_64-minimal.iso \
   --initrd-inject $(pwd)/kickstart.ks \
@@ -139,7 +139,7 @@ sudo virt-install \
   --name al10-test \
   --memory 4096 \
   --vcpus 2 \
-  --disk size=150 \
+  --disk size=200,format=qcow2 \
   --check disk_size=off \
   --location /var/lib/libvirt/images/AlmaLinux-10.1-x86_64-dvd.iso \
   --initrd-inject $(pwd)/kickstart.ks \
