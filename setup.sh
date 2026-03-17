@@ -47,7 +47,7 @@ for choice in $CHOICES; do
     codecs) dnf install -y ffmpeg gstreamer1-plugins-bad-free \
               gstreamer1-plugins-ugly-free gstreamer1-plugin-libav vlc ;;
     obs)
-      dnf install -y libcamera-v4l2
+      dnf install -y libcamera-v4l2 flatpak
       flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
       flatpak install -y flathub com.obsproject.Studio
       flatpak override --user --device=all com.obsproject.Studio
