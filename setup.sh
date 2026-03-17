@@ -125,6 +125,7 @@ EOF
       GPG_KEY_ID=$(sudo -u "${ADMIN_USER}" \
         gpg --list-secret-keys --keyid-format=long "${GPG_EMAIL}" 2>/dev/null \
         | awk '/^sec/{split($2,a,"/"); print a[2]; exit}')
+      [ -z "${GPG_KEY_ID}" ] && { echo "ERROR: failed to extract GPG key ID"; exit 1; }
 
       sudo -u "${ADMIN_USER}" \
         gpg --armor --export "${GPG_KEY_ID}" \
@@ -142,7 +143,7 @@ EOF
       sudo -u "${ADMIN_USER}" git config --global gpg.format openpgp
       sudo -u "${ADMIN_USER}" git config --global user.signingkey "${GPG_KEY_ID}"
       sudo -u "${ADMIN_USER}" git config --global commit.gpgsign true
-      sudo -u "${ADMIN_USER}" git config --global \
+      git -C /opt/al10-daily-driver config \
         remote.origin.url "git@github.com:korciuch/al10-daily-driver.git"
 
       # Claude Code
