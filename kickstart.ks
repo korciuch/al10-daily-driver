@@ -30,15 +30,11 @@ user --name=admin --groups=wheel --password=changeme --plaintext
 firstboot --disable
 
 # ── Disk & partitioning ───────────────────────────────────────────────────────
-# Auto-detect the first available disk so this works both in a VM (vda)
-# and on the real machine (nvme0n1). clearpart --all wipes everything.
-clearpart --all --initlabel
-bootloader --location=mbr
-
-# Prompt for LUKS passphrase — only interactive pause in the install
-part /boot/efi --fstype=efi  --size=600   --asprimary
-part /boot     --fstype=xfs  --size=1024
-part pv.01     --size=1      --grow       --encrypted --luks-version=luks2
+# %pre detects the target disk ($DISK) and writes /tmp/disk-include so that
+# clearpart, bootloader, and all part commands explicitly target that disk via
+# --ondisk / --drives / --boot-drive. Without --ondisk, Anaconda may place
+# /boot/efi and /boot on the USB install stick instead of the NVMe. See #7.
+%include /tmp/disk-include
 
 volgroup vg0 pv.01
 
@@ -67,6 +63,17 @@ DISK=$(lsblk -d -n -o NAME,RM,TYPE 2>/dev/null | awk '$2==0 && $3=="disk"{print 
 DISK_MB=0
 [ -n "$DISK" ] && DISK_MB=$(lsblk -b -d -n -o SIZE /dev/$DISK 2>/dev/null | awk '{print int($1/1024/1024)}')
 [ "$DISK_MB" -eq 0 ] && DISK_MB=40960   # fallback: assume 40 GB
+
+# Write disk-include so all part commands target $DISK explicitly.
+# This prevents Anaconda from placing /boot/efi and /boot on the USB install
+# stick when multiple block devices are visible during install. See issue #7.
+cat > /tmp/disk-include <<DISKEOF
+clearpart --all --initlabel --drives=${DISK}
+bootloader --location=mbr --boot-drive=${DISK}
+part /boot/efi --fstype=efi  --size=600  --asprimary --ondisk=${DISK}
+part /boot     --fstype=xfs  --size=1024             --ondisk=${DISK}
+part pv.01     --size=1      --grow      --encrypted --luks-version=luks2 --ondisk=${DISK}
+DISKEOF
 
 if [ "$DISK_MB" -lt 102400 ]; then
     # Test / VM layout (< 100 GB)
