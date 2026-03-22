@@ -6,8 +6,11 @@ IPU6_REPO="https://github.com/korciuch/al10-intel-ipu6.git"
 IPU6_DIR="/opt/al10-intel-ipu6"
 
 clone_ipu6() {
-  [[ -d "$IPU6_DIR" ]] && return
-  git clone --recurse-submodules "$IPU6_REPO" "$IPU6_DIR"
+  if [[ ! -d "$IPU6_DIR" ]]; then
+    git clone --recurse-submodules "$IPU6_REPO" "$IPU6_DIR"
+  elif [[ ! -f "$IPU6_DIR/ipu6-drivers/dkms.conf" ]]; then
+    git -C "$IPU6_DIR" submodule update --init --recursive
+  fi
 }
 
 # Build checklist — devtools only on bare metal (requires GNOME Keyring)
