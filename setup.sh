@@ -81,79 +81,176 @@ DESKTOP
       ADMIN_UID=$(id -u "${ADMIN_USER}")
       export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${ADMIN_UID}/bus"
 
-      # Prompt for key details
-      GPG_NAME=$(whiptail --inputbox "Full name for GPG key:" 8 60 \
-        3>&1 1>&2 2>&3) || exit 0
-      GPG_EMAIL=$(whiptail --inputbox "Email for GPG/SSH keys:" 8 60 \
-        3>&1 1>&2 2>&3) || exit 0
-      GPG_EXPIRE=$(whiptail --inputbox "GPG key expiry (e.g. 2y, 1y, 0 = none):" 8 60 "2y" \
-        3>&1 1>&2 2>&3) || exit 0
+      as_admin() {
+        sudo -u "${ADMIN_USER}" --preserve-env=DBUS_SESSION_BUS_ADDRESS,DISPLAY "$@"
+      }
 
-      # GPG key
-      GPG_PASS=$(openssl rand -base64 32)
-      sudo -u "${ADMIN_USER}" gpg --batch --gen-key <<EOF
+      # ── GitHub auth ────────────────────────────────────────────────────────
+      echo "==> Checking GitHub authentication..."
+      REQUIRED_SCOPES="user read:user user:email write:gpg_key"
+      NEEDS_LOGIN=false
+      NEEDS_SCOPE=false
+
+      if ! as_admin gh auth status &>/dev/null; then
+        NEEDS_LOGIN=true
+      else
+        AUTH_STATUS=$(as_admin gh auth status 2>&1)
+        for scope in $REQUIRED_SCOPES; do
+          if ! echo "$AUTH_STATUS" | grep -q "$scope"; then
+            NEEDS_SCOPE=true; break
+          fi
+        done
+      fi
+
+      if $NEEDS_LOGIN; then
+        as_admin gh auth login \
+          --hostname github.com --git-protocol ssh --web \
+          --scopes "user,read:user,user:email,write:gpg_key"
+      elif $NEEDS_SCOPE; then
+        as_admin gh auth refresh \
+          --hostname github.com \
+          --scopes "user,read:user,user:email,write:gpg_key"
+      else
+        echo "  ok Already authenticated with GitHub"
+      fi
+
+      GH_USER=$(as_admin gh api user --jq '.login')
+      GH_EMAIL=$(as_admin gh api user/emails --jq '[.[] | select(.primary==true)] | .[0].email')
+      GH_NAME=$(as_admin gh api user --jq '.name // .login')
+      echo "  ok $GH_USER ($GH_NAME <$GH_EMAIL>)"
+
+      # ── GPG key ────────────────────────────────────────────────────────────
+      echo "==> Checking for existing GPG key for $GH_EMAIL..."
+      GPG_FP=$(as_admin gpg --list-secret-keys --with-colons "$GH_EMAIL" 2>/dev/null \
+        | awk -F: '/^fpr/{print $10; exit}') || true
+
+      if [[ -n "$GPG_FP" ]]; then
+        echo "  warn GPG key already exists ($GPG_FP) -- skipping generation"
+      else
+        echo "==> Generating 4096-bit RSA GPG key..."
+        GPG_BATCH=$(mktemp)
+        cat > "$GPG_BATCH" <<EOF
+%no-protection
 Key-Type: RSA
 Key-Length: 4096
 Subkey-Type: RSA
 Subkey-Length: 4096
-Name-Real: ${GPG_NAME}
-Name-Email: ${GPG_EMAIL}
-Expire-Date: ${GPG_EXPIRE}
-Passphrase: ${GPG_PASS}
+Name-Real: ${GH_NAME}
+Name-Email: ${GH_EMAIL}
+Expire-Date: 2y
+%commit
 EOF
-      sudo -u "${ADMIN_USER}" --preserve-env=DBUS_SESSION_BUS_ADDRESS \
-        bash -c "echo -n '${GPG_PASS}' | secret-tool store \
-          --label='GPG Key Passphrase' service gpg account admin"
+        as_admin gpg --batch --gen-key "$GPG_BATCH"
+        rm -f "$GPG_BATCH"
+        GPG_FP=$(as_admin gpg --list-secret-keys --with-colons "$GH_EMAIL" \
+          | awk -F: '/^fpr/{print $10; exit}')
+        echo "  ok GPG key generated ($GPG_FP)"
+      fi
 
-      # SSH key
-      SSH_PASS=$(openssl rand -base64 32)
-      mkdir -p "${ADMIN_HOME}/.ssh"
-      chmod 700 "${ADMIN_HOME}/.ssh"
-      sudo -u "${ADMIN_USER}" ssh-keygen -t ed25519 -C "${GPG_EMAIL}" \
-        -f "${ADMIN_HOME}/.ssh/id_ed25519" -N "${SSH_PASS}"
-      sudo -u "${ADMIN_USER}" --preserve-env=DBUS_SESSION_BUS_ADDRESS \
-        bash -c "echo -n '${SSH_PASS}' | secret-tool store \
-          --label='SSH Key Passphrase' service ssh account admin"
+      GPG_KEY_ID=$(as_admin gpg --list-secret-keys --with-colons "$GH_EMAIL" 2>/dev/null \
+        | awk -F: '/^sec/{print $5; exit}')
+      [[ -n "$GPG_KEY_ID" ]] || { echo "ERROR: failed to extract GPG key ID"; exit 1; }
 
-      # Configure gpg-agent to use pinentry-gnome3
+      if as_admin gh gpg-key list 2>/dev/null | grep -q "$GPG_KEY_ID"; then
+        echo "  warn GPG key already on GitHub -- skipping upload"
+      else
+        as_admin gpg --armor --export "$GPG_FP" \
+          | as_admin gh gpg-key add - --title "git-signing-$(hostname)-$(date +%Y%m%d)"
+        echo "  ok GPG public key added to GitHub"
+      fi
+
+      # Configure pinentry-gnome3
       mkdir -p "${ADMIN_HOME}/.gnupg"
-      echo "pinentry-program /usr/bin/pinentry-gnome3" \
-        > "${ADMIN_HOME}/.gnupg/gpg-agent.conf"
+      if ! grep -q "pinentry-program" "${ADMIN_HOME}/.gnupg/gpg-agent.conf" 2>/dev/null; then
+        echo "pinentry-program /usr/bin/pinentry-gnome3" \
+          >> "${ADMIN_HOME}/.gnupg/gpg-agent.conf"
+      fi
       chown -R "${ADMIN_USER}:${ADMIN_USER}" "${ADMIN_HOME}/.gnupg"
 
-      # GitHub CLI login + upload keys
-      sudo -u "${ADMIN_USER}" gh auth login
-      sudo -u "${ADMIN_USER}" gh auth refresh -h github.com -s write:gpg_key
+      # ── SSH key ────────────────────────────────────────────────────────────
+      echo "==> Checking for SSH key..."
+      SSH_KEY_PATH="${ADMIN_HOME}/.ssh/id_ed25519_github_${GH_USER}"
+      mkdir -p "${ADMIN_HOME}/.ssh"
+      chmod 700 "${ADMIN_HOME}/.ssh"
+      chown "${ADMIN_USER}:${ADMIN_USER}" "${ADMIN_HOME}/.ssh"
 
-      GPG_KEY_ID=$(sudo -u "${ADMIN_USER}" \
-        gpg --list-secret-keys --keyid-format=long "${GPG_EMAIL}" 2>/dev/null \
-        | awk '/^sec/{split($2,a,"/"); print a[2]; exit}')
-      [ -z "${GPG_KEY_ID}" ] && { echo "ERROR: failed to extract GPG key ID"; exit 1; }
+      if [[ -f "$SSH_KEY_PATH" ]]; then
+        echo "  warn SSH key already exists at $SSH_KEY_PATH -- skipping generation"
+      else
+        as_admin ssh-keygen -t ed25519 -C "$GH_EMAIL" -f "$SSH_KEY_PATH" -N ""
+        echo "  ok SSH key written to $SSH_KEY_PATH"
+      fi
 
-      sudo -u "${ADMIN_USER}" \
-        gpg --armor --export "${GPG_KEY_ID}" \
-        | sudo -u "${ADMIN_USER}" gh gpg-key add - --title "$(hostname)"
+      UPLOAD_OUT=$(as_admin gh ssh-key add "${SSH_KEY_PATH}.pub" \
+        --title "git-auth-$(hostname)-$(date +%Y%m%d)" \
+        --type authentication 2>&1) && \
+        echo "  ok SSH public key added to GitHub" || {
+          if echo "$UPLOAD_OUT" | grep -qiE "already|422|validation"; then
+            echo "  warn SSH key already on GitHub -- skipping upload"
+          else
+            echo "ERROR: SSH key upload failed: $UPLOAD_OUT" >&2; exit 1
+          fi
+        }
 
-      sudo -u "${ADMIN_USER}" \
-        gh ssh-key add "${ADMIN_HOME}/.ssh/id_ed25519.pub" --title "$(hostname)"
+      SSH_CONFIG="${ADMIN_HOME}/.ssh/config"
+      touch "$SSH_CONFIG"
+      chmod 600 "$SSH_CONFIG"
+      chown "${ADMIN_USER}:${ADMIN_USER}" "$SSH_CONFIG"
+      if ! grep -q "Host github.com" "$SSH_CONFIG" 2>/dev/null; then
+        cat >> "$SSH_CONFIG" <<EOF
 
-      ssh-keyscan github.com >> "${ADMIN_HOME}/.ssh/known_hosts"
+Host github.com
+  HostName github.com
+  User git
+  IdentityFile ${SSH_KEY_PATH}
+  AddKeysToAgent yes
+EOF
+        echo "  ok SSH config entry added for github.com"
+      else
+        echo "  warn ~/.ssh/config already has a github.com entry -- not modified"
+      fi
+
+      ssh-keyscan github.com >> "${ADMIN_HOME}/.ssh/known_hosts" 2>/dev/null
       chown "${ADMIN_USER}:${ADMIN_USER}" "${ADMIN_HOME}/.ssh/known_hosts"
 
-      # Configure git signing
-      sudo -u "${ADMIN_USER}" git config --global user.name "${GPG_NAME}"
-      sudo -u "${ADMIN_USER}" git config --global user.email "${GPG_EMAIL}"
-      sudo -u "${ADMIN_USER}" git config --global gpg.format openpgp
-      sudo -u "${ADMIN_USER}" git config --global user.signingkey "${GPG_KEY_ID}"
-      sudo -u "${ADMIN_USER}" git config --global commit.gpgsign true
+      # ── Git global config ──────────────────────────────────────────────────
+      echo "==> Configuring git globals..."
+      as_admin git config --global user.name  "$GH_NAME"
+      as_admin git config --global user.email "$GH_EMAIL"
+      as_admin git config --global user.signingkey "$GPG_FP"
+      as_admin git config --global commit.gpgsign true
+      as_admin git config --global tag.gpgsign true
+      as_admin git config --global gpg.program gpg
       git -C /opt/al10-daily-driver config \
-        remote.origin.url "git@github.com:korciuch/al10-daily-driver.git"
+        remote.origin.url "git@github.com:${GH_USER}/al10-daily-driver.git"
+      echo "  ok Git globals updated"
 
-      # Claude Code
-      sudo -u "${ADMIN_USER}" bash -c "curl -fsSL https://claude.ai/install.sh | bash"
+      # ── SSH smoke test ─────────────────────────────────────────────────────
+      echo "==> Testing SSH connection to GitHub..."
+      SSH_TEST=$(as_admin ssh -T git@github.com \
+        -o StrictHostKeyChecking=accept-new 2>&1 || true)
+      if echo "$SSH_TEST" | grep -q "successfully authenticated"; then
+        echo "  ok SSH auth to GitHub confirmed"
+      else
+        echo "  warn SSH test output: $SSH_TEST"
+      fi
 
-      # Zed editor
-      sudo -u "${ADMIN_USER}" bash -c "curl -f https://zed.dev/install.sh | sh"
+      # ── Claude Code + Zed ─────────────────────────────────────────────────
+      as_admin bash -c "curl -fsSL https://claude.ai/install.sh | bash"
+      as_admin bash -c "curl -f https://zed.dev/install.sh | sh"
+
+      # ── Summary ───────────────────────────────────────────────────────────
+      cat <<SUMMARY
+
+=== devtools setup complete ===
+  GPG key ID  : $GPG_KEY_ID  (fingerprint: $GPG_FP)
+  SSH key     : $SSH_KEY_PATH
+  Git signing : commit.gpgsign=true, tag.gpgsign=true
+
+  Verify a signed commit locally:
+    git log --show-signature -1
+
+SUMMARY
       ;;
   esac
 done

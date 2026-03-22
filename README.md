@@ -30,12 +30,8 @@ Embeds `kickstart.ks` directly into the AlmaLinux ISO so the install starts
 automatically on boot — no GRUB editing needed.
 
 ```bash
-# Install lorax (provides mkksiso) if not already present
-sudo dnf install -y lorax
-
-# Download the AlmaLinux 10.1 DVD ISO, then:
 git clone https://github.com/korciuch/al10-daily-driver.git
-bash al10-daily-driver/build-iso.sh AlmaLinux-10.1-x86_64-dvd.iso
+sudo bash al10-daily-driver/build-iso.sh /var/lib/libvirt/images/AlmaLinux-10.1-x86_64-dvd.iso
 ```
 
 This produces `al10-daily-driver.iso` (~8.5 GB).
