@@ -152,7 +152,7 @@ if ! systemd-detect-virt -q; then
     echo "==> Bare metal detected — installing Server with GUI"
     dnf groupinstall -y "Server with GUI"
     systemctl set-default graphical.target
-    dnf install -y qemu-kvm qemu-img libvirt virt-install virt-viewer edk2-ovmf
+    dnf install -y qemu-kvm qemu-img libvirt virt-install virt-viewer edk2-ovmf lorax
     for drv in qemu network nodedev nwfilter secret storage interface; do
         systemctl enable virt${drv}d{,-ro,-admin}.socket
     done
